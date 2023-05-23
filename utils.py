@@ -138,13 +138,14 @@ def noob_shares_management(price, signal, no_short=False):
             holding_rate[i] = holding_rate[i-1] if i>=1 else 0.
     return holding_rate
 
-def sim_trade2(price, signal, friction_rate = 0.001, print_func = lambda x: None, date = None):
+def sim_trade2(price, signal, friction = False, friction_rate = 0.001, print_func = lambda x: None, date = None):
     '''根据大盘信息和已经计算好的买卖信号，进行模拟交易
     signal 为 [-1, 1] 内的实数, 表示看空/看多的强度. 当 signal=1 时全仓做多, signal=-1 时做空
     signal 需持续保持信号值以持续持仓(例如连续的10个1.0表示连续10天保持满仓). 因此 MACD 等策略得出的信号还需经过一次仓位管理的过程才能输入
     friction 表示是否考虑佣金损耗'''
-
+    
     # 计算收益率和资金曲线
+    if not friction: friction_rate = 0
     fric_decay_ratio = 1 - 2*friction_rate # 买卖时交易佣金带来的损耗
     cash = 1000000.0  # 起始资金
     shares = np.zeros(shape = price.shape, dtype = np.float32) # 股份
@@ -184,3 +185,37 @@ def sim_trade2(price, signal, friction_rate = 0.001, print_func = lambda x: None
         capital[i] = cash + shares[i]*price[i]
 
     return capital
+
+def calc_drawdown(equity):
+    '''计算最大回撤，返回[0,1]间的实数'''
+    ans = 1
+    high = equity[0]
+    for i in range(len(equity)):
+        if equity[i]>high: high=equity[i]
+        else: ans = min(ans, equity[i]/high)
+    return ans
+
+def calc_sharpe_ratio(equity, nr_yearly_cycles=250, riskless_annual_yield=0.015, nr_samples=500, rd_seed=None):
+    '''计算基于年化收益率的夏普比。nr_nearly_cycles: 一年有多少个交易周期。'''
+    if rd_seed is not None: np.random.seed(rd_seed)
+    if len(equity) < nr_yearly_cycles: raise ValueError("Series too short!")
+    if nr_samples > len(equity): nr_samples = len(equity)
+
+    tot_yield = equity[-1]/equity[0] - 1
+    yearly_yield = np.exp(np.log(tot_yield+1) * nr_yearly_cycles/len(equity)) - 1
+
+    samples = []
+    for i in range(nr_samples):
+        t = np.random.randint(0, len(equity)-nr_yearly_cycles)
+        samples.append(equity[t+nr_yearly_cycles]/equity[t])
+    std = np.array(samples).std()
+
+    return (yearly_yield - riskless_annual_yield) / std
+
+def show_advanced_stat(Market: np.ndarray, Capital: np.ndarray, period = 250):
+    market_ratio = calc_sharpe_ratio(Market)
+    our_sharpe_ratio = calc_sharpe_ratio(Capital)
+    print(f'The sharpe ratio of the strategy is {our_sharpe_ratio:.3f} vs {market_ratio:.3f}(market)')
+    
+    max_drawdown = calc_drawdown(Capital)
+    print(f'Max draw down is: {(1-max_drawdown)*100:.2f}%.')
