@@ -1,8 +1,16 @@
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-import talib
+# import talib
 from datetime import datetime
+
+def add_line(plt, vector, normalize=False, log=False, label=None):
+    if normalize:
+        plt.plot(vector/vector[0], label=label)
+    elif log:
+        plt.plot(np.log(vector), label=label)
+    else:
+        plt.plot(vector, label=label)
 
 # plot
 def plot_idx(market_vector, capital_vector, log = True, downsample = 1):
