@@ -71,45 +71,54 @@ def calc_mbolling_csignal(plt, data: pd.DataFrame, do_short=False):
     do_short表示做空与否'''
     # sharpe = 0.76
     N = 2.1
+    M = 1.4
+    P = 1.2
+    Q = 3.0
     close = data['Close']
 
 	# calculate out custom bolling bands - MAGIC BOLLING
+    ma80, std80, lin80, rstd80 = magic_bolling(data, 80)
     ma40, std40, lin40, rstd40 = magic_bolling(data, 40)
     ma20, std20, lin20, rstd20 = magic_bolling(data, 20)
     #ma10, std10, lin10, rstd10 = magic_bolling(data, 10)
 
     up20   = ma20 + N * rstd20 + 10 * lin20 * (lin20>0)
     down20 = ma20 - N * rstd20 + 10 * lin40
-    rup20  = ma20 + N * rstd20 + 10 * lin40
-    rdown20= ma20 - N * rstd20 + 10 * lin20 * (lin20<0)
+    rup20  = ma20 + Q * rstd20 - 10 * np.abs(lin40)
+    rdown20= ma20 - M * std20  - P * std40 + 10 * np.abs(lin40) - (lin80 - lin40).apply(lambda x: max(x, 0))
 	
     #add_line(plt,   up20.fillna(close[0]), normalize=True, label="up20")
     #add_line(plt, down20.fillna(close[0]), normalize=True, label="down20")
     buy  = data['High'] > up20
     sell = data['Low' ] < down20
-    rbuy = data['Low' ] < rdown20
+    rbuy = data['Close' ] < rdown20
+    rsell = data['Close' ] > rup20
     #rsell= data['High'] > rup20
 
     holds = np.zeros_like(close.values)
 
     for i in range(1, len(holds)):
-        h = holds[i-1]
         if buy[i]:
             holds[i] = 1
         elif sell[i]:
             holds[i] = 0
-            if do_short and rbuy[i]:
-                holds[i] = -1
-        elif do_short and rbuy[i]:
-            holds[i] = -1
-        elif h < 0:
-            # 做空头寸衰减
-            holds[i] = 0.95 * h
         else:
             # 持仓
-            holds[i] = h
+            holds[i] = holds[i-1]
+    if not do_short:
+        return holds
+
+    short_holds = np.zeros_like(holds)
+
+    for i in range(1, len(short_holds)):
+        if rbuy[i]:
+            short_holds[i] = 1
+        elif rsell[i]:
+            short_holds[i] = 0
+        else:
+            short_holds[i] = short_holds[i-1]
     #add_line(plt, holds.astype(np.int8), label="holds")
-    return holds
+    return holds - short_holds
 
 
 data = load_data()
@@ -174,5 +183,5 @@ print('')
 # ======================== #
 
 plt.grid(); plt.legend()
-#plt.savefig("strategy.png")
+plt.savefig("strategy.png")
 plt.show()
