@@ -4,12 +4,12 @@ from matplotlib import pyplot as plt
 # import talib
 from datetime import datetime
 
-def add_line(plt, vector, normalize=False, log=False, label=None):
+def add_line(plt, vector, normalize=False, log=False, label=None, **kwargs):
     v = vector.copy()
     if normalize: v = v/v[0]
     if log: v = np.log(v)
 
-    plt.plot(v, label=label)
+    plt.plot(v, label=label, **kwargs)
 
 # plot
 def plot_idx(market_vector, capital_vector, log = True, downsample = 1):
@@ -229,9 +229,9 @@ def calc_sharpe_ratio(equity,
 
     return (yearly_yield - riskless_annual_yield) / std
 
-def show_advanced_stat(Market: np.ndarray, Capital: np.ndarray, period = 250):
-    market_ratio = calc_sharpe_ratio(Market)
-    our_sharpe_ratio = calc_sharpe_ratio(Capital)
+def show_advanced_stat(Market: np.ndarray, Capital: np.ndarray, period = 252):
+    market_ratio = calc_sharpe_ratio(Market, nr_yearly_cycles = period)
+    our_sharpe_ratio = calc_sharpe_ratio(Capital, nr_yearly_cycles = period)
     print(f'The sharpe ratio of the strategy is {our_sharpe_ratio:.3f} vs {market_ratio:.3f}(market)')
     
     max_drawdown = calc_drawdown(Capital)

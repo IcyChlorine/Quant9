@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+plt.rcParams['font.sans-serif'] = ['SimHei']
 from utils import *
 
 def load_data():
@@ -68,7 +69,7 @@ def magic_bolling(data: pd.DataFrame, period=20):
 def calc_mbolling_csignal(plt, data: pd.DataFrame, do_short=False):
     '''计算基于magic bolling的持仓信号。csignal - continuous signal - 表示每日持续持仓信号
     do_short表示做空与否'''
-    # sharpe = 0.75
+    # sharpe = 0.76
     N = 2.1
     close = data['Close']
 
@@ -79,15 +80,15 @@ def calc_mbolling_csignal(plt, data: pd.DataFrame, do_short=False):
 
     up20   = ma20 + N * rstd20 + 10 * lin20 * (lin20>0)
     down20 = ma20 - N * rstd20 + 10 * lin40
-    rup20  = ma20 + N *  std20
-    rdown20= ma20 - N *  std20
+    rup20  = ma20 + N * rstd20 + 10 * lin40
+    rdown20= ma20 - N * rstd20 + 10 * lin20 * (lin20<0)
 	
-    add_line(plt,   up20.fillna(close[0]), normalize=True, label="up20")
-    add_line(plt, down20.fillna(close[0]), normalize=True, label="down20")
+    #add_line(plt,   up20.fillna(close[0]), normalize=True, label="up20")
+    #add_line(plt, down20.fillna(close[0]), normalize=True, label="down20")
     buy  = data['High'] > up20
     sell = data['Low' ] < down20
     rbuy = data['Low' ] < rdown20
-    rsell= data['High'] > rup20
+    #rsell= data['High'] > rup20
 
     holds = np.zeros_like(close.values)
 
@@ -99,42 +100,79 @@ def calc_mbolling_csignal(plt, data: pd.DataFrame, do_short=False):
             holds[i] = 0
             if do_short and rbuy[i]:
                 holds[i] = -1
-        #elif rbuy[i]:
-        #    holds[i] = -1
+        elif do_short and rbuy[i]:
+            holds[i] = -1
         elif h < 0:
             # 做空头寸衰减
             holds[i] = 0.95 * h
         else:
             # 持仓
-            holds[i] = 0.95 * h
-    add_line(plt, holds.astype(np.int8), label="holds")
+            holds[i] = h
+    #add_line(plt, holds.astype(np.int8), label="holds")
     return holds
 
 
 data = load_data()
 plt.figure(figsize=(16,4))
-add_line(plt, data['Close'].values, normalize=True, label='close')
+add_line(plt, data['Close'].values, normalize=True, label='market')
 # add_line(plt, data['High'].values, normalize=True, label='high')
 # add_line(plt, data['Low'].values, normalize=True, label='low')
 
+# ================================================================= #
 # baseline - strategy based on traditional bolling bands
+# ================================================================= #
 baseline_holds = baseline(plt, data)
-baseline_capital = sim_trade2(data["Close"].values, baseline_holds, friction = True, friction_rate = 0.001, print_func = lambda x: None, date = None)
-add_line(plt, baseline_capital, normalize=True, label='bolling strategy')
+baseline_capital = sim_trade2(data["Close"].values, baseline_holds, 
+                              friction = True, friction_rate = 0.001, 
+                              print_func = lambda x: None, date = None)
+add_line(plt, baseline_capital, normalize=True, label='simple bolling strategy', linestyle='--')
+print('---------------Baseline (Simple Bolling Strategy)-------------------')
+print('------------------------<----annual----->----<-2010-2023->----------')
 show_rate_stat(data['Close'].values, baseline_capital, period = 252)
 show_advanced_stat(data['Close'].values, baseline_capital, period = 252)
+print('')
 
-# ours - strategy based on CUSTOM bolling bands
+
+# ================================================================= #
+# our strategy - strategy based on custom magic bolling bands(仅做多)
+# ================================================================= #
+print('Running Strategy...(it may take a few seconds)......')
 holds = calc_mbolling_csignal(plt, data)
-capital = sim_trade2(data["Close"].values, 
-    				 holds, 
+capital = sim_trade2(data["Close"].values, holds, 
     				 friction = True, friction_rate = 0.001, 
-    				 print_func = lambda x: None, 
-    				 date = None)
+    				 print_func = lambda x: None, date = None)
 
-add_line(plt, capital, normalize=True, label='ours')
+add_line(plt, capital, normalize=True, label='(ours)magic bolling strategy(仅做多)', color='C5')
+
+print('-----------------Magic Bolling Strateg(仅做多)----------------------')
+print('------------------------<----annual----->----<-2010-2023->----------')
 show_rate_stat(data['Close'].values, capital, period = 252)
 show_advanced_stat(data['Close'].values, capital, period = 252)
+print('')
+
+
+# ================================================================= #
+# ours strategy - strategy based on custom magic bolling bands(+做空)
+# ================================================================= #
+print('Running Strategy...(it may take a few seconds)......')
+# ours - strategy based on CUSTOM bolling bands - 带做空
+holds = calc_mbolling_csignal(plt, data, do_short=True)
+capital = sim_trade2(data["Close"].values, holds, 
+    				 friction = True, friction_rate = 0.001, 
+    				 print_func = lambda x: None, date = None)
+
+add_line(plt, capital, normalize=True, label='(ours)magic bolling strategy(+做空)', color='C3')
+
+print('------------------Magic Bolling Strateg(做多+做空)------------------')
+print('------------------------<----annual----->----<-2010-2023->----------')
+show_rate_stat(data['Close'].values, capital, period = 252)
+show_advanced_stat(data['Close'].values, capital, period = 252)
+print('')
+
+# ======================== #
+# End of strategies
+# ======================== #
+
 plt.grid(); plt.legend()
-# plt.savefig("with_short.png")
+#plt.savefig("strategy.png")
 plt.show()
