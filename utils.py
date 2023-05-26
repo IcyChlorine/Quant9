@@ -1,8 +1,16 @@
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-import talib
+# import talib
 from datetime import datetime
+
+def add_line(plt, vector, normalize=False, log=False, label=None):
+    if normalize:
+        plt.plot(vector/vector[0], label=label)
+    elif log:
+        plt.plot(np.log(vector), label=label)
+    else:
+        plt.plot(vector, label=label)
 
 # plot
 def plot_idx(market_vector, capital_vector, log = True, downsample = 1):
@@ -203,12 +211,15 @@ def calc_sharpe_ratio(equity, nr_yearly_cycles=250, riskless_annual_yield=0.015,
 
     tot_yield = equity[-1]/equity[0] - 1
     yearly_yield = np.exp(np.log(tot_yield+1) * nr_yearly_cycles/len(equity)) - 1
-
-    samples = []
-    for i in range(nr_samples):
-        t = np.random.randint(0, len(equity)-nr_yearly_cycles)
-        samples.append(equity[t+nr_yearly_cycles]/equity[t])
-    std = np.array(samples).std()
+    samples = [
+        equity[t+nr_yearly_cycles]/equity[t] for t in range(len(equity)-nr_yearly_cycles)
+    ]
+    daily_return = np.log(equity[1:] / equity[:-1])
+    std = np.std(daily_return) * np.sqrt(252)
+    # for i in range(nr_samples):
+    #     t = np.random.randint(0, len(equity)-nr_yearly_cycles)
+    #     samples.append(equity[t+nr_yearly_cycles]/equity[t])
+    # std = np.array(samples).std()
 
     return (yearly_yield - riskless_annual_yield) / std
 
