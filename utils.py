@@ -5,12 +5,11 @@ from matplotlib import pyplot as plt
 from datetime import datetime
 
 def add_line(plt, vector, normalize=False, log=False, label=None):
-    if normalize:
-        plt.plot(vector/vector[0], label=label)
-    elif log:
-        plt.plot(np.log(vector), label=label)
-    else:
-        plt.plot(vector, label=label)
+    v = vector.copy()
+    if normalize: v = v/v[0]
+    if log: v = np.log(v)
+
+    plt.plot(v, label=label)
 
 # plot
 def plot_idx(market_vector, capital_vector, log = True, downsample = 1):
@@ -203,19 +202,26 @@ def calc_drawdown(equity):
         else: ans = min(ans, equity[i]/high)
     return ans
 
-def calc_sharpe_ratio(equity, nr_yearly_cycles=250, riskless_annual_yield=0.015, nr_samples=500, rd_seed=None):
+def calc_sharpe_ratio(equity, 
+                      nr_yearly_cycles=250, 
+                      riskless_annual_yield=0.015, 
+                      nr_samples=500, rd_seed=None):
     '''计算基于年化收益率的夏普比。nr_nearly_cycles: 一年有多少个交易周期。'''
     if rd_seed is not None: np.random.seed(rd_seed)
     if len(equity) < nr_yearly_cycles: raise ValueError("Series too short!")
     if nr_samples > len(equity): nr_samples = len(equity)
+
+	# 标准差计算方法：每天的平均收益率的标准差 x sqrt(N)，N是一年中的交易周期数。
+	# 基于一些统计理论，年化收益率的标准差 ~ 日收益率的标准差 x sqrt(N)。
 
     tot_yield = equity[-1]/equity[0] - 1
     yearly_yield = np.exp(np.log(tot_yield+1) * nr_yearly_cycles/len(equity)) - 1
     samples = [
         equity[t+nr_yearly_cycles]/equity[t] for t in range(len(equity)-nr_yearly_cycles)
     ]
+    
     daily_return = np.log(equity[1:] / equity[:-1])
-    std = np.std(daily_return) * np.sqrt(252)
+    std = np.std(daily_return) * np.sqrt(nr_yearly_cycles)
     # for i in range(nr_samples):
     #     t = np.random.randint(0, len(equity)-nr_yearly_cycles)
     #     samples.append(equity[t+nr_yearly_cycles]/equity[t])
